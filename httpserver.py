@@ -1,4 +1,20 @@
 import asyncio
+from http.server import BaseHTTPRequestHandler
+from io import BytesIO
+
+
+class HTTPRequest(BaseHTTPRequestHandler):
+    def __init__(self, request_bytes):
+        self.rfile = BytesIO(request_bytes)
+        self.raw_requestline = self.rfile.readline()
+        self.error_code = self.error_message = None
+        self.parse_request()
+
+    def send_error(self, code, message):
+        self.error_code = code
+        self.error_message = message
+
+
 
 class HTTPServerClientProtocol(asyncio.Protocol):
 
@@ -17,21 +33,8 @@ class HTTPServerClientProtocol(asyncio.Protocol):
             print("Not at end of header yet")
             return
 
-        header_text = self.buffer[:header_end_ix]
-        print("Got total header, it's {!r}".format(header_text))
-        headers = header_text.split(b"\r\n")
-        host = None
-        for header in headers:
-            print("Processing header {!r}".format(header))
-            try:
-                key, _, value = header.partition(b": ")
-                # value = value.strip(b"\r\n")
-                print("Key is {!r}, value is {!r}".format(key, value))
-                if key == b"Host":
-                    host = value.decode()
-            except Exception as e:
-                print("No colon, skipping: {!r}".format(e))
-
+        request = HTTPRequest(self.buffer)
+        host = request.headers.get("Host")
         if host is None:
             print("It's a non-hosty one")
         else:
