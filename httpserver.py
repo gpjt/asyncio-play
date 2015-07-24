@@ -15,25 +15,22 @@ class HTTPRequest(BaseHTTPRequestHandler):
         self.error_message = message
 
 
+@asyncio.coroutine
+def handle_request(reader, writer):
+    data = b""
 
-class HTTPServerClientProtocol(asyncio.Protocol):
+    while True:
+        data += yield from reader.read(100)
+        header_end_ix = data.find(b"\r\n\r\n")
+        if header_end_ix != -1:
+            print("Detected end of header")
+            break
+        print("Not at end of header yet")
 
-    def connection_made(self, transport):
-        peername = transport.get_extra_info('peername')
-        print('Connection from {}'.format(peername))
-        self.transport = transport
-        self.buffer = b""
-
-    def data_received(self, data):
-        print('Raw data received: {!r}'.format(data))
-
-        self.buffer += data
-        header_end_ix = self.buffer.find(b"\r\n\r\n")
-        if header_end_ix == -1:
-            print("Not at end of header yet")
-            return
-
-        request = HTTPRequest(self.buffer)
+    request = HTTPRequest(data[:header_end_ix])
+    if request.error_code is not None:
+        reply = "Error {}".format(request.error_code)
+    else:
         host = request.headers.get("Host")
         if host is None:
             print("It's a non-hosty one")
@@ -41,15 +38,15 @@ class HTTPServerClientProtocol(asyncio.Protocol):
             print("It has the host {!r}".format(host))
 
         reply = "You're trying to access {!r}".format(host)
-        print('Send: {!r}'.format(reply))
-        self.transport.write(reply.encode("utf8"))
 
-        print('Close the client socket')
-        self.transport.close()
+    print('Send: {!r}'.format(reply))
+    writer.write(reply.encode("utf8"))
+
+    print('Close the client socket')
+    writer.close()
 
 loop = asyncio.get_event_loop()
-# Each client connection will create a new protocol instance
-coro = loop.create_server(HTTPServerClientProtocol, '127.0.0.1', 8888)
+coro = asyncio.start_server(handle_request, '127.0.0.1', 8888, loop=loop)
 server = loop.run_until_complete(coro)
 
 # Serve requests until CTRL+c is pressed
@@ -63,3 +60,4 @@ except KeyboardInterrupt:
 server.close()
 loop.run_until_complete(server.wait_closed())
 loop.close()
+
