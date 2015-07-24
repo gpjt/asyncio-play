@@ -20,7 +20,14 @@ def handle_request(reader, writer):
     data = b""
 
     while True:
-        data += yield from reader.read(100)
+        try:
+            data += yield from asyncio.wait_for(reader.read(100), timeout=10)
+        except asyncio.TimeoutError:
+            print("TimeoutError!")
+            writer.write(b"Timeout!")
+            writer.close()
+            return
+
         header_end_ix = data.find(b"\r\n\r\n")
         if header_end_ix != -1:
             print("Detected end of header")
