@@ -67,26 +67,32 @@ def handle_request(downstream_reader, downstream_writer):
             print("Got some data")
             breakout = False
             for future in done:
-                print("Result is {!r}".format(future.result()))
-                if future.result() is b"":
-                    breakout = True
-
                 if future == upstream_reader_task:
                     print("It's the upstream reader.  Replacing it.")
                     upstream_reader_task = asyncio.Task(upstream_reader.read(100))
-                    print("Writing to downstream")
-                    downstream_writer.write(future.result())
+                    print("Result is {!r}".format(future.result()))
+                    if future.result() is b"":
+                        breakout = True
+                    else:
+                        print("Writing to downstream")
+                        downstream_writer.write(future.result())
                 elif future == downstream_reader_task:
                     print("It's the downstream reader.  Replacing it.")
                     downstream_reader_task = asyncio.Task(downstream_reader.read(100))
-                    print("Writing to upstream")
-                    upstream_writer.write(future.result())
+                    print("Result is {!r}".format(future.result()))
+                    if future.result() is b"":
+                        breakout = True
+                    else:
+                        print("Writing to upstream")
+                        upstream_writer.write(future.result())
                 else:
                     raise Exception("WTF?")
 
             if breakout:
-                print("Result is none, breaking")
+                print("Breakout!")
                 break
+
+        print("Out of loop")
 
 
     finally:
